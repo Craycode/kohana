@@ -1,55 +1,70 @@
 <?php
 
-use Symfony\Component\OptionsResolver\OptionsResolver;
-use Symfony\Component\OptionsResolver\Options;
-
-class View_Default
+class View_Default extends Kostache
 {
-	/**
-	 * View options.
-	 * 
-	 * @var View_Options
-	 */
-	protected $_options;
+	protected $_partials;
 
 	/**
-	 * Get options.
-	 * 
-	 * @return View_Options
+	 * {@inheritdoc}
 	 */
-	public function get_options()
+	public function __construct()
 	{
-		return $this->_options->all();
+		// Inject this.
+		$engine = new Mustache_Engine(
+			array(
+			'escape' => function($value)
+			{
+				return HTML::chars($value);
+			},
+			'cache' => APPPATH.'cache/mustache',
+			)
+		);
+
+		parent::__construct($engine);
 	}
 
 	/**
-	 * Set view option.
-	 * 
-	 * @param string $name Option name.
-	 * @param mixed $value Option value.s
+	 * {@inheritdoc}
 	 */
-	public function set_option($name, $value)
+	public function render($object = null, $template = null)
 	{
-		$this->_options->set($name, $value);
+		/* @var $engine Mustache_Engine */
+		$engine = $this->_engine;
+		$engine->setLoader(new Mustache_Loader_Kohana());
+		$engine->setHelpers(array(
+			'widget' => new View_Widget,
+		));
+
+		$partial_loader = new Mustache_Loader_CascadingLoader(array(
+			new Mustache_Loader_Partial(null, array('parent_view' => $this)),
+			new Mustache_Loader_Kohana,
+		));
+
+		$engine->setPartialsLoader($partial_loader);
+
+		return parent::render($object ? : $this, $template);
 	}
 
-	public function params()
+	public function __toString()
 	{
-		$this->_options = $this->_initialize_options(View_Options::create());
-		echo "<pre>";
-		print_r($this->_options->all());
-		return $this->_options->all();
+		try
+		{
+			return $this->render();
+		}
+		catch (Exception $e)
+		{
+			return "<div>".
+				$e->getMessage().
+				"</div><pre hidden>".
+				$e->getTraceAsString().
+				"</pre>";
+		}
 	}
 
-	/**
-	 * Initialise view options.
-	 * 
-	 * @param View_Options $options
-	 * 
-	 * @return View_Options
-	 */
-	protected function _initialize_options(View_Options $options)
+	public function get_time()
 	{
-		return $options;
+		$now = new DateTime;
+
+		return $now->format('Y-m-d H:i:s');
 	}
 }
